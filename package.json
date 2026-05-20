@@ -11,7 +11,8 @@
     "start:frontdoor": "node doubao-asr-frontdoor.js",
     "start:panel": "node control-panel-server.js",
     "watchdog": "./ensure-lobehub-connect.sh",
-    "check": "node --check desktop-tools.js && node --check doubao-asr-frontdoor.js && node --check lobe-dispatch-worker.js && node --check control-panel-server.js && node --check scripts/smoke-test.js",
+    "doctor": "node scripts/doctor.js",
+    "check": "node --check scripts/doctor.js && node --check desktop-tools.js && node --check doubao-asr-frontdoor.js && node --check lobe-dispatch-worker.js && node --check control-panel-server.js && node --check scripts/smoke-test.js",
     "test": "npm run check"
   },
   "keywords": [

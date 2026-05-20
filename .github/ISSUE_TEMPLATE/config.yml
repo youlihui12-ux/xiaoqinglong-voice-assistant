@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Community Chat (Xiaozhi)
+    url: https://xiaozhi.me/community
+    about: Join the Xiaozhi community for real-time help and discussion.
+  - name: Documentation
+    url: https://github.com/youlihui12-ux/xiaoqinglong-voice-assistant#readme
+    about: Check the README for quickstart and configuration guides.
