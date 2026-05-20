@@ -2,6 +2,10 @@
 
 ## v0.1.1 - Launchd Upgrade Compatibility
 
+### Added
+
+- Task terminal reports now fire for completed and blocked tasks, and can optionally trigger macOS local speech and system notifications in addition to the existing LobeHub notification topic.
+
 ### Fixed
 
 - Services started by launchd now read `.env` and the legacy `doubao-asr-frontdoor.env` consistently.
@@ -35,4 +39,4 @@ First public release of Xiaoqinglong Voice Assistant.
 
 - This release is a bridge and operator control surface, not a packaged macOS app.
 - Users must provide their own Xiaozhi MCP endpoint, Doubao ASR key, LobeHub Agent ID, and local token.
-- Voice response back to hardware TTS is not included in this release.
+- Voice response back to Xiaozhi hardware TTS is not included in this release; macOS local speech and notifications can be enabled for completion reports.

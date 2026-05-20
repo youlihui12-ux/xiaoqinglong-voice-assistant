@@ -4,8 +4,10 @@ const path = require("path");
 const os = require("os");
 const {
   buildCompletionReport,
+  buildSpokenCompletionReport,
   compactText,
   maskTopic,
+  resolveLocalCompletionReport,
   resolveNotifyTopic,
   shouldSendCompletionReport,
 } = require("./task-completion-reporter");
@@ -44,6 +46,7 @@ const runtimeEnv = loadEnv();
 const lobeCliPath = runtimeEnv.LOBE_CLI_PATH || path.join(os.homedir(), "Library/Application Support/LobeHub/bin/lobe");
 const defaultLobeAgentId = runtimeEnv.LOBE_AGENT_ID || "your-lobe-agent-id";
 const notifyTopic = resolveNotifyTopic(runtimeEnv);
+const localCompletionReport = resolveLocalCompletionReport(runtimeEnv, process.platform);
 
 function stripAnsi(text) {
   return String(text || "").replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, "");
@@ -157,6 +160,19 @@ function extractLobeAgentResult(stdout) {
     eventCount: events.length,
   };
 }
+
+function execFileQuiet(command, args, options = {}) {
+  return new Promise((resolve) => {
+    execFile(command, args, options, (error, stdout, stderr) => {
+      resolve({ error, stdout, stderr });
+    });
+  });
+}
+
+function escapeAppleScriptString(value) {
+  return String(value || "").replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
 function buildLobeDispatchPrompt(task) {
   return [
     "你是 LobeHub 的 Hermes · 小青龙 Agent，小智是你的语音智能助手前台。小智负责听懂用户、保持上下文、给出即时回应；你负责深度推理、工具调用和长任务执行。",
@@ -208,8 +224,7 @@ async function runLobeAgentDetailed(prompt) {
   });
 }
 
-async function sendCompletionReport(task) {
-  const message = buildCompletionReport(task);
+async function sendLobeCompletionReport(task, message) {
   const base = {
     channel: "lobe-notify",
     message,
@@ -258,6 +273,98 @@ async function sendCompletionReport(task) {
     );
   });
 }
+
+async function sendMacOSCompletionReport(task) {
+  const base = {
+    channel: "macos-local",
+    attemptedAt: new Date().toISOString(),
+    speech: localCompletionReport.speech,
+    notification: localCompletionReport.notification,
+  };
+  if (!localCompletionReport.available) {
+    return { ...base, status: "skipped", error: "当前系统不是 macOS，无法使用本地语音或系统通知。" };
+  }
+  if (!localCompletionReport.speech && !localCompletionReport.notification) {
+    return { ...base, status: "skipped", error: "未启用 macOS 完成汇报通道。" };
+  }
+
+  const spoken = buildSpokenCompletionReport(task);
+  const details = [];
+  const failures = [];
+
+  if (localCompletionReport.notification) {
+    const notificationText = compactText(spoken, 220);
+    const result = await execFileQuiet(
+      "/usr/bin/osascript",
+      ["-e", 'display notification "' + escapeAppleScriptString(notificationText) + '" with title "小青龙任务完成"'],
+      { timeout: 15000, maxBuffer: 256 * 1024 },
+    );
+    if (result.error) {
+      const detail = compactText([result.stdout, result.stderr, result.error.message].filter(Boolean).join("\n"), 500);
+      failures.push("notification=" + (detail || "系统通知失败"));
+      await appendWorkerLog("completion-report-notification-failed task=" + task.id + " " + (detail || ""));
+    } else {
+      details.push("notification=sent");
+      await appendWorkerLog("completion-report-notification-sent task=" + task.id);
+    }
+  }
+
+  if (localCompletionReport.speech) {
+    const result = await execFileQuiet(
+      "/usr/bin/say",
+      [spoken],
+      { timeout: 45000, maxBuffer: 256 * 1024 },
+    );
+    if (result.error) {
+      const detail = compactText([result.stdout, result.stderr, result.error.message].filter(Boolean).join("\n"), 500);
+      failures.push("speech=" + (detail || "本机语音播报失败"));
+      await appendWorkerLog("completion-report-speech-failed task=" + task.id + " " + (detail || ""));
+    } else {
+      details.push("speech=sent");
+      await appendWorkerLog("completion-report-speech-sent task=" + task.id);
+    }
+  }
+
+  if (details.length) {
+    return {
+      ...base,
+      status: "sent",
+      sentAt: new Date().toISOString(),
+      message: spoken,
+      detail: details.concat(failures).join("；"),
+      error: failures.join("；"),
+    };
+  }
+  return {
+    ...base,
+    status: "failed",
+    message: spoken,
+    error: failures.join("；") || "macOS 完成汇报失败",
+  };
+}
+
+async function sendCompletionReport(task) {
+  const message = buildCompletionReport(task);
+  const attemptedAt = new Date().toISOString();
+  const lobeReport = await sendLobeCompletionReport(task, message);
+  const macOSReport = await sendMacOSCompletionReport(task);
+  const channels = [lobeReport, macOSReport];
+  const sentChannels = channels.filter((item) => item.status === "sent");
+  const failedChannels = channels.filter((item) => item.status === "failed");
+  const status = sentChannels.length ? "sent" : failedChannels.length ? "failed" : "skipped";
+
+  return {
+    channel: sentChannels.map((item) => item.channel).join(",") || "completion-report",
+    message,
+    attemptedAt,
+    status,
+    sentAt: sentChannels.length ? new Date().toISOString() : undefined,
+    topic: lobeReport.topic,
+    detail: compactText(channels.map((item) => item.channel + ":" + item.status + (item.detail ? " " + item.detail : "")).join("\n"), 1600),
+    error: compactText(failedChannels.map((item) => item.channel + ":" + (item.error || "failed")).join("\n"), 1600),
+    channels,
+  };
+}
 (async () => {
   const id = process.argv[2];
   if (!id) process.exit(2);
@@ -267,7 +374,13 @@ async function sendCompletionReport(task) {
   await updateTask(id, { status: "running", error: "" });
   const result = await runLobeAgentDetailed(buildLobeDispatchPrompt(task));
   if (!result.ok) {
-    await updateTask(id, { status: "blocked", operationId: result.operationId || "", error: result.error || "Lobe 默认大脑调用失败" });
+    const beforeBlockedTasks = await readAiTasks();
+    const beforeBlockedTask = beforeBlockedTasks.find((item) => item.id === id);
+    const blockedTask = await updateTask(id, { status: "blocked", operationId: result.operationId || "", error: result.error || "Lobe 默认大脑调用失败" });
+    if (shouldSendCompletionReport(beforeBlockedTask, blockedTask)) {
+      const completionReport = await sendCompletionReport(blockedTask);
+      await updateTask(id, { completionReport });
+    }
     process.exit(1);
   }
   const beforeDoneTasks = await readAiTasks();

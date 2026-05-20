@@ -68,7 +68,9 @@ Create `.env` from `.env.example` and fill only local values. Do not commit `.en
 | `DOUBAO_ASR_API_KEY` | Yes | Doubao ASR credential used by the frontdoor. |
 | `LOBE_AGENT_ID` | Yes | LobeHub Agent used as the reasoning brain. |
 | `XIAOQINGLONG_API_TOKEN` | Yes | Local token for controlled dashboard actions. |
-| `XIAOQINGLONG_NOTIFY_TOPIC` | Recommended | LobeHub topic used for immediate task-completion reports. |
+| `XIAOQINGLONG_NOTIFY_TOPIC` | Recommended | LobeHub topic used for immediate task terminal reports. |
+| `XIAOQINGLONG_COMPLETION_REPORT_SPEECH` | Optional | Set to `1` on macOS to speak immediate completed/blocked task reports with the local `say` command. |
+| `XIAOQINGLONG_COMPLETION_REPORT_NOTIFICATION` | Optional | Set to `1` on macOS to show immediate completed/blocked task reports as system notifications. |
 | `LOBE_CLI_PATH` | Optional | Custom LobeHub CLI path. Defaults to `~/Library/Application Support/LobeHub/bin/lobe`. |
 | `XIAOQINGLONG_FRONTDOOR_PORT` | Optional | Frontdoor and Mission Control API port. Defaults to `43173`. |
 | `XIAOQINGLONG_PANEL_PORT` | Optional | Mission Control dashboard port. Defaults to `43174`. |
