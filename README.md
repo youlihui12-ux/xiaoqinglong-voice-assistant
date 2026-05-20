@@ -38,6 +38,7 @@ open .env
 XIAOZHI_MCP_WS -> <your_xiaozhi_mcp_websocket_url>
 DOUBAO_ASR_API_KEY -> <your_doubao_asr_api_key>
 LOBE_AGENT_ID -> <your_lobehub_agent_id>
+XIAOQINGLONG_API_TOKEN -> <set_a_long_random_local_token>
 ```
 
 启动前门：
@@ -75,14 +76,17 @@ npm run start:bridge
 | `LOBE_CLI_PATH` | LobeHub CLI 路径，留空时使用 macOS 默认路径 |
 | `LOBE_AGENT_ID` | 负责执行任务的 Lobe Agent ID |
 | `LOBE_AGENT_NAME` | 控制台展示的 Agent 名称 |
+| `XIAOQINGLONG_API_TOKEN` | 本机控制台执行重启、清队列、注入测试等受控操作时使用的 Header Token |
 | `OBSIDIAN_VAULT_PATH` | 可选，Obsidian Vault 路径 |
 
 ## 安全边界
 
 - 项目不会自动上传本地日志、任务记录或个人记忆。
 - `.env`、日志、任务队列、截图和备份文件默认被 `.gitignore` 排除。
+- `POST /api/action` 默认要求 `X-API-Token`，Token 来自 `.env` 的 `XIAOQINGLONG_API_TOKEN`。
 - 高风险操作应由控制台审批后再执行。
 - 默认白名单限制了可打开、可关闭和可操作的本机应用。
+- 在终端窗口处于焦点时谨慎使用语音粘贴能力，避免误把转写文本当作命令执行。
 
 ## 开发检查
 

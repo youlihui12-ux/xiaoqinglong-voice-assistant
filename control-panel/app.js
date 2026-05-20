@@ -13,7 +13,22 @@ function levelClass(ok, warn = false) { return ok ? "good" : warn ? "warn" : "da
 function statusText(status) { return String(status || "unknown").toLowerCase(); }
 function formatDate(value) { if (!value) return "未刷新"; const date = new Date(value); return Number.isNaN(date.getTime()) ? value : date.toLocaleTimeString("zh-CN", { hour12: false }); }
 async function apiGet(path) { const response = await fetch(API + path, { cache: "no-store" }); if (!response.ok) throw new Error(await response.text()); return response.json(); }
-async function apiAction(action, extra = {}) { const response = await fetch(API + "/api/action", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, ...extra }) }); const data = await response.json(); if (!response.ok || data.ok === false) throw new Error(data.error || data.stderr || "操作失败"); return data; }
+function getApiToken() {
+  let token = localStorage.getItem("xiaoqinglong_api_token") || "";
+  if (!token) {
+    token = prompt("请输入 .env 里的 XIAOQINGLONG_API_TOKEN，用于本机受控操作。") || "";
+    if (token) localStorage.setItem("xiaoqinglong_api_token", token);
+  }
+  return token;
+}
+function setApiToken() {
+  const current = localStorage.getItem("xiaoqinglong_api_token") || "";
+  const token = prompt("设置本机控制 API Token", current) || "";
+  if (!token) return;
+  localStorage.setItem("xiaoqinglong_api_token", token);
+  showToast("Token 已保存在当前浏览器");
+}
+async function apiAction(action, extra = {}) { const token = getApiToken(); const headers = { "content-type": "application/json" }; if (token) headers["x-api-token"] = token; const response = await fetch(API + "/api/action", { method: "POST", headers, body: JSON.stringify({ action, ...extra }) }); const data = await response.json(); if (!response.ok || data.ok === false) { if (response.status === 401) localStorage.removeItem("xiaoqinglong_api_token"); throw new Error(data.error || data.stderr || "操作失败"); } return data; }
 function renderLiveStatus(data) {
   $("[data-live-status]").innerHTML = data.liveStatus.map((item) => { const cls = levelClass(item.ok, item.key === "asr" && !item.ok); return `<article class="live-node ${cls}"><div class="node-head"><span>${item.label}</span><span class="status-light ${cls}"></span></div><strong>${item.value}</strong><p>${item.detail || "-"}</p></article>`; }).join("");
   const allOk = data.liveStatus.every((item) => item.ok);
@@ -39,5 +54,5 @@ function renderApprovals(data) { const list = $("[data-approval-list]"); const a
 function render(data) { state = data; $("[data-updated-at]").textContent = `刷新 ${formatDate(data.updatedAt)}`; renderLiveStatus(data); renderMetrics(data); renderTasks(data); renderLogs(data); renderApprovals(data); }
 async function refresh() { try { render(await apiGet("/api/mission-control")); } catch (error) { showToast("刷新失败：" + error.message.slice(0, 180)); } }
 async function runAction(action, extra = {}) { try { if (["clear-active-queue", "abort-current-task"].includes(action) && !confirm("确认执行这个急救操作？")) return; if (action === "dispatch-test") extra.text = $("#test-input")?.value.trim(); const result = await apiAction(action, extra); showToast(result.task ? `已注入 ${result.task.id}` : "操作已执行"); await refresh(); } catch (error) { showToast("操作失败：" + error.message.slice(0, 180)); } }
-document.addEventListener("click", async (event) => { const actionButton = event.target.closest("[data-action]"); if (actionButton) { const action = actionButton.dataset.action; if (action === "refresh") await refresh(); else await runAction(action); } const copyButton = event.target.closest("[data-copy]"); if (copyButton) { try { await navigator.clipboard.writeText(copyButton.dataset.copy); showToast("已复制：" + copyButton.dataset.copy); } catch { showToast(copyButton.dataset.copy); } } });
+document.addEventListener("click", async (event) => { const actionButton = event.target.closest("[data-action]"); if (actionButton) { const action = actionButton.dataset.action; if (action === "refresh") await refresh(); else if (action === "set-api-token") setApiToken(); else await runAction(action); } const copyButton = event.target.closest("[data-copy]"); if (copyButton) { try { await navigator.clipboard.writeText(copyButton.dataset.copy); showToast("已复制：" + copyButton.dataset.copy); } catch { showToast(copyButton.dataset.copy); } } });
 refresh(); setInterval(refresh, 2000);

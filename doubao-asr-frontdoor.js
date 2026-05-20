@@ -100,8 +100,16 @@ function ensureBrainConfig() {
   return next;
 }
 function sendJson(res, status, body) {
-  res.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "access-control-allow-origin": "http://127.0.0.1:43174", "access-control-allow-methods": "GET,POST,OPTIONS", "access-control-allow-headers": "content-type" });
+  res.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "access-control-allow-origin": "http://127.0.0.1:43174", "access-control-allow-methods": "GET,POST,OPTIONS", "access-control-allow-headers": "content-type,x-api-token" });
   res.end(JSON.stringify(body, null, 2));
+}
+function authorizeAction(req, env) {
+  const expected = String(env.XIAOQINGLONG_API_TOKEN || "").trim();
+  if (!expected && env.XIAOQINGLONG_ALLOW_UNAUTH_LOCAL === "1") return { ok: true };
+  if (!expected) return { ok: false, status: 503, error: "Set XIAOQINGLONG_API_TOKEN in .env before using POST /api/action." };
+  const received = String(req.headers["x-api-token"] || "").trim();
+  if (received !== expected) return { ok: false, status: 401, error: "Invalid X-API-Token." };
+  return { ok: true };
 }
 function readBody(req) {
   return new Promise((resolve) => {
@@ -287,7 +295,13 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === "/lobe-status") { const result = await lobeStatus(); appendLog("lobe-status " + JSON.stringify({ ok: result.ok, connected: result.connected })); return sendJson(res, result.ok ? 200 : 502, result); }
     if (url.pathname === "/config") return sendJson(res, 200, { ...config, voiceFrontdoor: { ...config.voiceFrontdoor, apiKey: mask(env.DOUBAO_ASR_API_KEY) } });
     if (url.pathname === "/api/mission-control") return sendJson(res, 200, await missionControl());
-    if (url.pathname === "/api/action" && req.method === "POST") { const body = await readBody(req); const result = await action(body.action, body); return sendJson(res, result.ok ? 200 : 400, result); }
+    if (url.pathname === "/api/action" && req.method === "POST") {
+      const auth = authorizeAction(req, env);
+      if (!auth.ok) return sendJson(res, auth.status, { ok: false, error: auth.error });
+      const body = await readBody(req);
+      const result = await action(body.action, body);
+      return sendJson(res, result.ok ? 200 : 400, result);
+    }
   } catch (error) { appendLog("error " + (error.stack || error.message)); return sendJson(res, 500, { ok: false, error: error.message || String(error) }); }
   sendJson(res, 404, { ok: false, error: "not found", routes: ["/health", "/probe", "/lobe-status", "/config", "/api/mission-control", "/api/action"] });
 });
