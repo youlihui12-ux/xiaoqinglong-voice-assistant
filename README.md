@@ -115,6 +115,10 @@ npm run doctor
 node scripts/smoke-test.js
 ```
 
+## Releases
+
+See [CHANGELOG.md](CHANGELOG.md) for release notes.
+
 ## License
 
 MIT - See [LICENSE](LICENSE) for details.
