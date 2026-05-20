@@ -111,13 +111,16 @@ if (existingSources.length === 0) {
   markFatal();
 } else {
   const requiredKeys = ['XIAOZHI_MCP_WS', 'DOUBAO_ASR_API_KEY', 'LOBE_AGENT_ID', 'XIAOQINGLONG_API_TOKEN'];
+  const recommendedKeys = ['XIAOQINGLONG_NOTIFY_TOPIC'];
   const missingKeys = requiredKeys.filter((key) => !envVars[key]);
+  const missingRecommendedKeys = recommendedKeys.filter((key) => !envVars[key]);
 
   results.env = {
     status: missingKeys.length === 0 ? 'pass' : 'fail',
     sources: existingSources,
     found: Object.keys(envVars).length,
-    missing: missingKeys
+    missing: missingKeys,
+    recommendedMissing: missingRecommendedKeys
   };
   if (results.env.status === 'fail') markFatal();
 }

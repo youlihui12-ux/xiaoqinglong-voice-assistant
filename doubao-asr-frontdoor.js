@@ -63,6 +63,13 @@ function mask(value) { return !value ? "" : value.length <= 8 ? "****" : value.s
 function readJson(file, fallback) { try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return fallback; } }
 function writeJson(file, data) { fs.writeFileSync(file, JSON.stringify(data, null, 2), "utf8"); }
 function tailFile(file, maxLines = 80) { try { return fs.readFileSync(file, "utf8").split(/\r?\n/).filter(Boolean).slice(-maxLines); } catch { return []; } }
+function sanitizeMissionLogLine(line) {
+  return String(line || "")
+    .replace(/wss:\/\/api\.xiaozhi\.me\/mcp\/\?token=[A-Za-z0-9._~-]+/gi, "wss://api.xiaozhi.me/mcp/?token=<redacted>")
+    .replace(/([?&]token=)[A-Za-z0-9._~-]+/gi, "$1<redacted>")
+    .replace(/("token"\s*:\s*")[^"]+(")/gi, "$1<redacted>$2");
+}
+function sanitizeMissionLogLines(lines) { return lines.map(sanitizeMissionLogLine); }
 const MISSION_TASK_TEXT_LIMIT = 900;
 function compactMissionText(value, limit = MISSION_TASK_TEXT_LIMIT) {
   const text = String(value || "").replace(/\s+/g, " ").trim();
@@ -211,8 +218,8 @@ async function missionControl() {
   const tasks = readJson(taskQueuePath, []);
   const approvals = readJson(approvalsPath, []);
   const [bridge, frontdoor, panel, watchdog, lobe, probe] = await Promise.all([launchStatus("bridge"), launchStatus("frontdoor"), launchStatus("panel"), launchStatus("watchdog"), lobeStatus(), wsProbe(env)]);
-  const bridgeLogs = tailFile(bridgeLogPath, 160);
-  const watchdogLogs = tailFile(watchdogLogPath, 80);
+  const bridgeLogs = sanitizeMissionLogLines(tailFile(bridgeLogPath, 160));
+  const watchdogLogs = sanitizeMissionLogLines(tailFile(watchdogLogPath, 80));
   const counts = taskCounts(tasks);
   const today = new Date().toLocaleDateString("zh-CN");
   const todayHighRisk = tasks.filter((task) => String(task.createdAt || "").includes(today) && isHighRisk(task)).length + approvals.length;
@@ -242,7 +249,7 @@ async function missionControl() {
     services: { bridge, frontdoor, panel, watchdog: watchdogService, lobe, probe },
     tasks: tasks.slice(-30).reverse().map(summarizeMissionTask),
     approvals: approvals.slice(-20).reverse(),
-    mcp: { toolCalls: extractToolCalls(bridgeLogs), raw: bridgeLogs.slice(-80), errors: tailFile(bridgeErrPath, 50) },
+    mcp: { toolCalls: extractToolCalls(bridgeLogs), raw: bridgeLogs.slice(-80), errors: sanitizeMissionLogLines(tailFile(bridgeErrPath, 50)) },
   };
 }
 function nextAiTaskId(tasks) {

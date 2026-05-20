@@ -2,6 +2,13 @@ const { execFile } = require("child_process");
 const fs = require("fs/promises");
 const path = require("path");
 const os = require("os");
+const {
+  buildCompletionReport,
+  compactText,
+  maskTopic,
+  resolveNotifyTopic,
+  shouldSendCompletionReport,
+} = require("./task-completion-reporter");
 
 const rootDir = __dirname;
 const envPath = path.join(rootDir, ".env");
@@ -36,6 +43,7 @@ function loadEnv() {
 const runtimeEnv = loadEnv();
 const lobeCliPath = runtimeEnv.LOBE_CLI_PATH || path.join(os.homedir(), "Library/Application Support/LobeHub/bin/lobe");
 const defaultLobeAgentId = runtimeEnv.LOBE_AGENT_ID || "your-lobe-agent-id";
+const notifyTopic = resolveNotifyTopic(runtimeEnv);
 
 function stripAnsi(text) {
   return String(text || "").replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, "");
@@ -199,6 +207,57 @@ async function runLobeAgentDetailed(prompt) {
     );
   });
 }
+
+async function sendCompletionReport(task) {
+  const message = buildCompletionReport(task);
+  const base = {
+    channel: "lobe-notify",
+    message,
+    attemptedAt: new Date().toISOString(),
+  };
+
+  if (!notifyTopic) {
+    await appendWorkerLog("completion-report-skipped missing-notify-topic task=" + task.id);
+    return {
+      ...base,
+      status: "skipped",
+      error: "未配置 XIAOQINGLONG_NOTIFY_TOPIC 或 LOBE_NOTIFY_TOPIC",
+    };
+  }
+
+  return new Promise((resolve) => {
+    execFile(
+      lobeCliPath,
+      ["notify", "--topic", notifyTopic, "-c", message, "--agent-id", defaultLobeAgentId, "--json"],
+      {
+        timeout: 30000,
+        maxBuffer: 1024 * 1024,
+        env: { ...runtimeEnv, NO_COLOR: "1", FORCE_COLOR: "0" },
+      },
+      async (error, stdout, stderr) => {
+        const detail = compactText([stdout, stderr, error?.message].filter(Boolean).join("\n"), 1200);
+        if (error) {
+          await appendWorkerLog("completion-report-failed task=" + task.id + " " + detail);
+          resolve({
+            ...base,
+            status: "failed",
+            topic: maskTopic(notifyTopic),
+            error: detail || "Lobe notify 调用失败",
+          });
+          return;
+        }
+        await appendWorkerLog("completion-report-sent task=" + task.id + " topic=" + maskTopic(notifyTopic));
+        resolve({
+          ...base,
+          status: "sent",
+          sentAt: new Date().toISOString(),
+          topic: maskTopic(notifyTopic),
+          detail,
+        });
+      },
+    );
+  });
+}
 (async () => {
   const id = process.argv[2];
   if (!id) process.exit(2);
@@ -211,7 +270,13 @@ async function runLobeAgentDetailed(prompt) {
     await updateTask(id, { status: "blocked", operationId: result.operationId || "", error: result.error || "Lobe 默认大脑调用失败" });
     process.exit(1);
   }
-  await updateTask(id, { status: "done", operationId: result.operationId || "", result: result.answer || "Lobe 默认大脑已完成。", error: "" });
+  const beforeDoneTasks = await readAiTasks();
+  const beforeDoneTask = beforeDoneTasks.find((item) => item.id === id);
+  const completedTask = await updateTask(id, { status: "done", operationId: result.operationId || "", result: result.answer || "Lobe 默认大脑已完成。", error: "" });
+  if (shouldSendCompletionReport(beforeDoneTask, completedTask)) {
+    const completionReport = await sendCompletionReport(completedTask);
+    await updateTask(id, { completionReport });
+  }
 })().catch(async (error) => {
   const id = process.argv[2];
   if (id) await updateTask(id, { status: "blocked", error: error.message || String(error) });

@@ -12,8 +12,8 @@
     "start:panel": "node control-panel-server.js",
     "watchdog": "./ensure-lobehub-connect.sh",
     "doctor": "node scripts/doctor.js",
-    "check": "node --check scripts/doctor.js && node --check desktop-tools.js && node --check doubao-asr-frontdoor.js && node --check lobe-dispatch-worker.js && node --check control-panel-server.js && node --check scripts/smoke-test.js",
-    "test": "npm run check"
+    "check": "node --check scripts/doctor.js && node --check desktop-tools.js && node --check doubao-asr-frontdoor.js && node --check lobe-dispatch-worker.js && node --check task-completion-reporter.js && node --check control-panel-server.js && node --check scripts/smoke-test.js",
+    "test": "npm run check && node --test tests/*.test.js"
   },
   "keywords": [
     "xiaozhi",
