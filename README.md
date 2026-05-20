@@ -71,9 +71,10 @@ Create `.env` from `.env.example` and fill only local values. Do not commit `.en
 | `LOBE_CLI_PATH` | Optional | Custom LobeHub CLI path. Defaults to `~/Library/Application Support/LobeHub/bin/lobe`. |
 | `XIAOQINGLONG_FRONTDOOR_PORT` | Optional | Frontdoor and Mission Control API port. Defaults to `43173`. |
 | `XIAOQINGLONG_PANEL_PORT` | Optional | Mission Control dashboard port. Defaults to `43174`. |
+| `XIAOQINGLONG_*_LABEL` | Optional | Existing launchd labels for upgraded local installs. |
 | `OBSIDIAN_VAULT_PATH` | Optional | Local vault path for Obsidian-oriented tools. |
 
-`npm run doctor` checks Node.js, required environment keys, JSON config files, the LobeHub CLI path, and local service probes. Missing configuration is reported as a failure; offline local services are reported as warnings so a clean checkout can still be diagnosed before services are started.
+`npm run doctor` checks Node.js, required environment keys, JSON config files, the LobeHub CLI path, and local service probes. It reads `.env` and the legacy `doubao-asr-frontdoor.env` used by older local installs, with `.env` taking precedence. Missing configuration is reported as a failure; offline local services are reported as warnings so a clean checkout can still be diagnosed before services are started.
 
 ## What it does
 

@@ -3,7 +3,30 @@ const fs = require('fs');
 const path = require('path');
 
 const root = path.join(__dirname, 'control-panel');
-const port = Number(process.env.XIAOQINGLONG_PANEL_PORT || 43174);
+const envPath = path.join(__dirname, '.env');
+const legacyEnvPath = path.join(__dirname, 'doubao-asr-frontdoor.env');
+
+function parseEnv(text) {
+  const out = {};
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+    const eq = line.indexOf('=');
+    if (eq !== -1) out[line.slice(0, eq).trim()] = line.slice(eq + 1).trim();
+  }
+  return out;
+}
+
+function readEnvFile(file) {
+  try {
+    return parseEnv(fs.readFileSync(file, 'utf8'));
+  } catch {
+    return {};
+  }
+}
+
+const runtimeEnv = { ...readEnvFile(legacyEnvPath), ...readEnvFile(envPath), ...process.env };
+const port = Number(runtimeEnv.XIAOQINGLONG_PANEL_PORT || 43174);
 const host = '127.0.0.1';
 const types = {
   '.html': 'text/html; charset=utf-8',

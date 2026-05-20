@@ -18,15 +18,34 @@ const logPath = path.join(logDir, "doubao-asr-frontdoor.log");
 const bridgeLogPath = path.join(logDir, "launchd.out.log");
 const bridgeErrPath = path.join(logDir, "launchd.err.log");
 const watchdogLogPath = path.join(logDir, "lobehub-connect-watchdog.out.log");
-const lobeCliPath = process.env.LOBE_CLI_PATH || path.join(os.homedir(), "Library/Application Support/LobeHub/bin/lobe");
-const defaultLobeAgentId = process.env.LOBE_AGENT_ID || "your-lobe-agent-id";
-const defaultLobeAgentName = process.env.LOBE_AGENT_NAME || "Hermes · 小青龙";
-const launchUser = process.env.XIAOQINGLONG_LAUNCH_USER || "gui/" + (typeof process.getuid === "function" ? process.getuid() : 501);
+
+function parseEnv(text) {
+  const out = {};
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+    const eq = line.indexOf("=");
+    if (eq !== -1) out[line.slice(0, eq).trim()] = line.slice(eq + 1).trim();
+  }
+  return out;
+}
+function readEnvFile(file) {
+  return fs.existsSync(file) ? parseEnv(fs.readFileSync(file, "utf8")) : {};
+}
+function loadEnv() {
+  return { ...readEnvFile(legacyEnvPath), ...readEnvFile(envPath), ...process.env };
+}
+
+const bootEnv = loadEnv();
+const lobeCliPath = bootEnv.LOBE_CLI_PATH || path.join(os.homedir(), "Library/Application Support/LobeHub/bin/lobe");
+const defaultLobeAgentId = bootEnv.LOBE_AGENT_ID || "your-lobe-agent-id";
+const defaultLobeAgentName = bootEnv.LOBE_AGENT_NAME || "Hermes · 小青龙";
+const launchUser = bootEnv.XIAOQINGLONG_LAUNCH_USER || "gui/" + (typeof process.getuid === "function" ? process.getuid() : 501);
 const launchLabels = {
-  bridge: process.env.XIAOQINGLONG_BRIDGE_LABEL || launchUser + "/com.xiaoqinglong.desktop-bridge",
-  watchdog: process.env.XIAOQINGLONG_WATCHDOG_LABEL || launchUser + "/com.xiaoqinglong.lobehub-connect-watchdog",
-  frontdoor: process.env.XIAOQINGLONG_FRONTDOOR_LABEL || launchUser + "/com.xiaoqinglong.doubao-asr-frontdoor",
-  panel: process.env.XIAOQINGLONG_PANEL_LABEL || launchUser + "/com.xiaoqinglong.control-panel",
+  bridge: bootEnv.XIAOQINGLONG_BRIDGE_LABEL || launchUser + "/com.xiaoqinglong.desktop-bridge",
+  watchdog: bootEnv.XIAOQINGLONG_WATCHDOG_LABEL || launchUser + "/com.xiaoqinglong.lobehub-connect-watchdog",
+  frontdoor: bootEnv.XIAOQINGLONG_FRONTDOOR_LABEL || launchUser + "/com.xiaoqinglong.doubao-asr-frontdoor",
+  panel: bootEnv.XIAOQINGLONG_PANEL_LABEL || launchUser + "/com.xiaoqinglong.control-panel",
 };
 
 function escapeRegex(value) {
@@ -39,22 +58,6 @@ function escapeRegex(value) {
 function appendLog(message) {
   fs.mkdirSync(path.dirname(logPath), { recursive: true });
   fs.appendFileSync(logPath, new Date().toISOString() + " " + message + "\n", "utf8");
-}
-function parseEnv(text) {
-  const out = {};
-  for (const rawLine of text.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith("#")) continue;
-    const eq = line.indexOf("=");
-    if (eq !== -1) out[line.slice(0, eq)] = line.slice(eq + 1);
-  }
-  return out;
-}
-function readEnvFile(file) {
-  return fs.existsSync(file) ? parseEnv(fs.readFileSync(file, "utf8")) : {};
-}
-function loadEnv() {
-  return { ...readEnvFile(legacyEnvPath), ...readEnvFile(envPath), ...process.env };
 }
 function mask(value) { return !value ? "" : value.length <= 8 ? "****" : value.slice(0, 4) + "..." + value.slice(-4); }
 function readJson(file, fallback) { try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return fallback; } }
@@ -252,7 +255,7 @@ function createDispatchTask(text, source = "control-panel") {
   const task = { id: nextAiTaskId(tasks), worker: "lobe", workerName: "Lobe AI", title: String(text || "").trim(), notes: "Mission Control 注入测试", source, context: "由小青龙 Mission Control 控制台注入，用于排障验证链路。", priority: "normal", status: "assigned", createdAt: now, updatedAt: now, operationId: "", result: "", error: "" };
   tasks.push(task);
   writeJson(taskQueuePath, tasks);
-  const child = spawn(process.execPath, [lobeWorkerPath, task.id], { detached: true, stdio: "ignore", env: { ...process.env, NO_COLOR: "1", FORCE_COLOR: "0" } });
+  const child = spawn(process.execPath, [lobeWorkerPath, task.id], { detached: true, stdio: "ignore", env: { ...loadEnv(), NO_COLOR: "1", FORCE_COLOR: "0" } });
   child.unref();
   appendLog("dispatch " + task.id + " " + task.title);
   return task;
@@ -305,5 +308,5 @@ const server = http.createServer(async (req, res) => {
   } catch (error) { appendLog("error " + (error.stack || error.message)); return sendJson(res, 500, { ok: false, error: error.message || String(error) }); }
   sendJson(res, 404, { ok: false, error: "not found", routes: ["/health", "/probe", "/lobe-status", "/config", "/api/mission-control", "/api/action"] });
 });
-const port = Number(process.env.XIAOQINGLONG_FRONTDOOR_PORT || 43173);
+const port = Number(bootEnv.XIAOQINGLONG_FRONTDOOR_PORT || 43173);
 server.listen(port, "127.0.0.1", () => { ensureBrainConfig(); appendLog("listening http://127.0.0.1:" + port); });

@@ -92,19 +92,30 @@ results.node = {
 if (results.node.status === 'fail') markFatal();
 
 const envPath = path.join(rootDir, '.env');
-const envExists = fs.existsSync(envPath);
+const legacyEnvPath = path.join(rootDir, 'doubao-asr-frontdoor.env');
+const envSources = [
+  { name: 'doubao-asr-frontdoor.env', path: legacyEnvPath },
+  { name: '.env', path: envPath },
+];
 let envVars = {};
 
-if (!envExists) {
+for (const source of envSources) {
+  if (fs.existsSync(source.path)) {
+    envVars = { ...envVars, ...parseEnvFile(source.path) };
+  }
+}
+
+const existingSources = envSources.filter((source) => fs.existsSync(source.path)).map((source) => source.name);
+if (existingSources.length === 0) {
   results.env = { status: 'fail', message: '.env file missing' };
   markFatal();
 } else {
-  envVars = parseEnvFile(envPath);
   const requiredKeys = ['XIAOZHI_MCP_WS', 'DOUBAO_ASR_API_KEY', 'LOBE_AGENT_ID', 'XIAOQINGLONG_API_TOKEN'];
   const missingKeys = requiredKeys.filter((key) => !envVars[key]);
 
   results.env = {
     status: missingKeys.length === 0 ? 'pass' : 'fail',
+    sources: existingSources,
     found: Object.keys(envVars).length,
     missing: missingKeys
   };

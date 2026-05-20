@@ -1,7 +1,37 @@
 const { execFile, spawn } = require("child_process");
 const fs = require("fs/promises");
+const fsSync = require("fs");
 const path = require("path");
 const os = require("os");
+
+const rootDir = __dirname;
+const envPath = path.join(rootDir, ".env");
+const legacyEnvPath = path.join(rootDir, "doubao-asr-frontdoor.env");
+
+function parseEnv(text) {
+  const out = {};
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+    const eq = line.indexOf("=");
+    if (eq !== -1) out[line.slice(0, eq).trim()] = line.slice(eq + 1).trim();
+  }
+  return out;
+}
+
+function readEnvFile(file) {
+  try {
+    return parseEnv(fsSync.readFileSync(file, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function loadEnv() {
+  return { ...readEnvFile(legacyEnvPath), ...readEnvFile(envPath), ...process.env };
+}
+
+const runtimeEnv = loadEnv();
 
 const allowedApps = {
   chrome: "Google Chrome",
@@ -88,21 +118,21 @@ const allowedMenuItems = {
 
 const workbenches = {
   小智控制台: [
-    process.env.XIAOZHI_CONSOLE_URL || "https://xiaozhi.me/console",
+    runtimeEnv.XIAOZHI_CONSOLE_URL || "https://xiaozhi.me/console",
     "https://xiaozhi.me/console/knowledge-base",
   ],
   知识库: [
-    process.env.OBSIDIAN_URI || "obsidian://open",
+    runtimeEnv.OBSIDIAN_URI || "obsidian://open",
     "https://xiaozhi.me/console/knowledge-base",
   ],
   今日工作: [
-    process.env.WORKBENCH_MAIL_URL || "https://mail.google.com/mail/u/0/#inbox",
-    process.env.WORKBENCH_CALENDAR_URL || "https://calendar.google.com/calendar/u/0/r",
-    process.env.OBSIDIAN_URI || "obsidian://open",
+    runtimeEnv.WORKBENCH_MAIL_URL || "https://mail.google.com/mail/u/0/#inbox",
+    runtimeEnv.WORKBENCH_CALENDAR_URL || "https://calendar.google.com/calendar/u/0/r",
+    runtimeEnv.OBSIDIAN_URI || "obsidian://open",
   ],
 };
 
-const obsidianVaultPath = process.env.OBSIDIAN_VAULT_PATH || path.join(os.homedir(), "Documents", "Obsidian Vault");
+const obsidianVaultPath = runtimeEnv.OBSIDIAN_VAULT_PATH || path.join(os.homedir(), "Documents", "Obsidian Vault");
 const jarvisModePath = path.join(__dirname, "jarvis-mode.json");
 const aiTaskQueuePath = path.join(__dirname, "xiaoqinglong-ai-tasks.json");
 const lobeDispatchWorkerPath = path.join(__dirname, "lobe-dispatch-worker.js");
@@ -117,9 +147,9 @@ const allowedShortcuts = new Set([
   "今日计划",
 ]);
 
-const lobeCliPath = process.env.LOBE_CLI_PATH || path.join(os.homedir(), "Library/Application Support/LobeHub/bin/lobe");
-const defaultLobeAgentId = process.env.LOBE_AGENT_ID || "your-lobe-agent-id";
-const defaultLobeAgentName = process.env.LOBE_AGENT_NAME || "Hermes · 小青龙";
+const lobeCliPath = runtimeEnv.LOBE_CLI_PATH || path.join(os.homedir(), "Library/Application Support/LobeHub/bin/lobe");
+const defaultLobeAgentId = runtimeEnv.LOBE_AGENT_ID || "your-lobe-agent-id";
+const defaultLobeAgentName = runtimeEnv.LOBE_AGENT_NAME || "Hermes · 小青龙";
 
 const aiWorkers = {
   codex: {
@@ -234,7 +264,7 @@ function runLobeAgent(prompt, agentId = defaultLobeAgentId) {
       {
         timeout: 180000,
         maxBuffer: 25 * 1024 * 1024,
-        env: { ...process.env, NO_COLOR: "1", FORCE_COLOR: "0" },
+        env: { ...runtimeEnv, NO_COLOR: "1", FORCE_COLOR: "0" },
       },
       (error, stdout, stderr) => {
         if (error) {
@@ -820,7 +850,7 @@ function startLobeDispatchWorker(taskId) {
     cwd: __dirname,
     detached: true,
     stdio: "ignore",
-    env: { ...process.env, NO_COLOR: "1", FORCE_COLOR: "0" },
+    env: { ...runtimeEnv, NO_COLOR: "1", FORCE_COLOR: "0" },
   });
   child.unref();
 }

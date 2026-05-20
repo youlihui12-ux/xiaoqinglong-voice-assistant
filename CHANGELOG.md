@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.1.1 - Launchd Upgrade Compatibility
+
+### Fixed
+
+- Services started by launchd now read `.env` and the legacy `doubao-asr-frontdoor.env` consistently.
+- Mission Control, the MCP desktop tools, and the Lobe dispatch worker now share the same local LobeHub Agent ID and CLI path.
+- `npm run doctor` recognizes legacy upgraded installs while keeping `.env` as the override source.
+
 ## v0.1.0 - Local AI Operator Bridge
 
 First public release of Xiaoqinglong Voice Assistant.

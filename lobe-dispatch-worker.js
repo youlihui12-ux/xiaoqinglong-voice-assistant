@@ -4,11 +4,38 @@ const path = require("path");
 const os = require("os");
 
 const rootDir = __dirname;
+const envPath = path.join(rootDir, ".env");
+const legacyEnvPath = path.join(rootDir, "doubao-asr-frontdoor.env");
 const aiTaskQueuePath = path.join(rootDir, "xiaoqinglong-ai-tasks.json");
-const lobeCliPath = process.env.LOBE_CLI_PATH || path.join(os.homedir(), "Library/Application Support/LobeHub/bin/lobe");
-const defaultLobeAgentId = process.env.LOBE_AGENT_ID || "your-lobe-agent-id";
 const workerLogPath = path.join(rootDir, "logs", "lobe-dispatch-worker.log");
 const STORED_TEXT_LIMIT = 2400;
+
+function parseEnv(text) {
+  const out = {};
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+    const eq = line.indexOf("=");
+    if (eq !== -1) out[line.slice(0, eq).trim()] = line.slice(eq + 1).trim();
+  }
+  return out;
+}
+
+function readEnvFile(file) {
+  try {
+    return parseEnv(require("fs").readFileSync(file, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function loadEnv() {
+  return { ...readEnvFile(legacyEnvPath), ...readEnvFile(envPath), ...process.env };
+}
+
+const runtimeEnv = loadEnv();
+const lobeCliPath = runtimeEnv.LOBE_CLI_PATH || path.join(os.homedir(), "Library/Application Support/LobeHub/bin/lobe");
+const defaultLobeAgentId = runtimeEnv.LOBE_AGENT_ID || "your-lobe-agent-id";
 
 function stripAnsi(text) {
   return String(text || "").replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, "");
@@ -151,7 +178,7 @@ async function runLobeAgentDetailed(prompt) {
       {
         timeout: 180000,
         maxBuffer: 8 * 1024 * 1024,
-        env: { ...process.env, NO_COLOR: "1", FORCE_COLOR: "0" },
+        env: { ...runtimeEnv, NO_COLOR: "1", FORCE_COLOR: "0" },
       },
       async (error, stdout, stderr) => {
         const parsed = extractLobeAgentResult(stdout);
