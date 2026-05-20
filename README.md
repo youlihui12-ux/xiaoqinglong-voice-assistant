@@ -22,6 +22,7 @@ graph TD
     BT -- Local Command --> LB[LobeHub Local Device]
     LB -- Tools --> DT[desktop-tools.js]
     DT -- AppleScript/Shell --> MacOS[macOS System]
+    LB -- Completion Report --> HTTS[Hardware TTS Downlink Outbox]
     BT -- Status/Logs --> MC[Mission Control Dashboard]
     MC -- UI --> Browser[Browser Port 43174]
 ```
@@ -71,6 +72,9 @@ Create `.env` from `.env.example` and fill only local values. Do not commit `.en
 | `XIAOQINGLONG_NOTIFY_TOPIC` | Recommended | LobeHub topic used for immediate task terminal reports. |
 | `XIAOQINGLONG_COMPLETION_REPORT_SPEECH` | Optional | Set to `1` on macOS to speak immediate completed/blocked task reports with the local `say` command. |
 | `XIAOQINGLONG_COMPLETION_REPORT_NOTIFICATION` | Optional | Set to `1` on macOS to show immediate completed/blocked task reports as system notifications. |
+| `XIAOQINGLONG_HARDWARE_TTS` | Optional | Set to `1` to enable the Xiaozhi hardware TTS downlink channel for task terminal reports. |
+| `XIAOQINGLONG_HARDWARE_TTS_ENDPOINT` | Optional | Local-only HTTP endpoint that receives hardware TTS payloads. Only loopback hosts such as `127.0.0.1` and `localhost` are accepted. If omitted, reports are queued in `xiaoqinglong-hardware-tts-outbox.json`. |
+| `XIAOQINGLONG_HARDWARE_TTS_TOKEN` | Optional | Local token sent as `X-API-Token` to the hardware TTS gateway. |
 | `LOBE_CLI_PATH` | Optional | Custom LobeHub CLI path. Defaults to `~/Library/Application Support/LobeHub/bin/lobe`. |
 | `XIAOQINGLONG_FRONTDOOR_PORT` | Optional | Frontdoor and Mission Control API port. Defaults to `43173`. |
 | `XIAOQINGLONG_PANEL_PORT` | Optional | Mission Control dashboard port. Defaults to `43174`. |
@@ -84,6 +88,7 @@ Create `.env` from `.env.example` and fill only local values. Do not commit `.en
 - **Voice Entry:** Connects to Xiaozhi MCP WebSocket to bridge voice commands to local tool calls.
 - **Local Brain:** Dispatches complex tasks to local LobeHub Agents via LobeHub CLI.
 - **Mission Control:** A browser-based dashboard (Port 43174) to monitor the voice link, task queue, watchdog, and high-risk approvals.
+- **Proactive Reports:** Completed and blocked tasks can report through LobeHub notify, macOS speech/notifications, and the Xiaozhi hardware TTS downlink outbox or local gateway.
 - **Privacy First:** Built-in allowlists for macOS apps, menus, and shortcuts. No logs or task history are uploaded.
 
 ## Safe Operating Boundary
@@ -103,8 +108,21 @@ The open-source package intentionally excludes personal runtime data: no `.env`,
 | `desktop-tools.js` | Xiaozhi MCP toolset for local actions and LobeHub entry. |
 | `doubao-asr-frontdoor.js` | Mission Control API & health checks (Port `43173`). |
 | `lobe-dispatch-worker.js` | Background worker for LobeHub task execution. |
+| `hardware-tts-downlink.js` | Local-only hardware TTS downlink payload, queue, and gateway delivery layer. |
 | `control-panel-server.js` | Static server for the Mission Control UI (Port `43174`). |
 | `scripts/doctor.js` | Local environment and readiness checker. |
+
+## Hardware TTS Downlink
+
+The public Xiaozhi MCP bridge lets the cloud call local tools, but proactive hardware speech needs a device-facing TTS path. Xiaozhi ESP32 protocol expects server-side `tts start`, audio frames, and `tts stop`; it is not the same as returning text from a tool call.
+
+This project now includes a safe first-stage downlink layer:
+
+- If `XIAOQINGLONG_HARDWARE_TTS=1` and a loopback `XIAOQINGLONG_HARDWARE_TTS_ENDPOINT` is configured, completed/blocked task reports are posted to that local gateway.
+- If the gateway is not configured, reports are queued in `xiaoqinglong-hardware-tts-outbox.json` with evidence visible from Mission Control.
+- Non-loopback endpoints are blocked by design, so the dashboard cannot be used to exfiltrate private task content.
+
+The next hardware step is to run or integrate a local ESP32 TTS gateway that accepts these payloads and converts them into the Xiaozhi device protocol audio downlink.
 
 ## Development & Testing
 

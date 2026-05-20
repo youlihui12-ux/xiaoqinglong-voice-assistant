@@ -11,6 +11,7 @@ const {
   resolveNotifyTopic,
   shouldSendCompletionReport,
 } = require("./task-completion-reporter");
+const { sendHardwareTtsDownlink } = require("./hardware-tts-downlink");
 
 const rootDir = __dirname;
 const envPath = path.join(rootDir, ".env");
@@ -345,13 +346,23 @@ async function sendMacOSCompletionReport(task) {
 
 async function sendCompletionReport(task) {
   const message = buildCompletionReport(task);
+  const spokenMessage = buildSpokenCompletionReport(task);
   const attemptedAt = new Date().toISOString();
   const lobeReport = await sendLobeCompletionReport(task, message);
   const macOSReport = await sendMacOSCompletionReport(task);
-  const channels = [lobeReport, macOSReport];
+  const hardwareTtsReport = await sendHardwareTtsDownlink(task, { env: runtimeEnv, rootDir, message: spokenMessage });
+  if (hardwareTtsReport.status === "queued") {
+    await appendWorkerLog("completion-report-hardware-tts-queued task=" + task.id + " outbox=" + hardwareTtsReport.outboxId);
+  } else if (hardwareTtsReport.status === "sent") {
+    await appendWorkerLog("completion-report-hardware-tts-sent task=" + task.id + " outbox=" + hardwareTtsReport.outboxId);
+  } else if (hardwareTtsReport.status === "failed") {
+    await appendWorkerLog("completion-report-hardware-tts-failed task=" + task.id + " " + (hardwareTtsReport.error || ""));
+  }
+  const channels = [lobeReport, macOSReport, hardwareTtsReport];
   const sentChannels = channels.filter((item) => item.status === "sent");
   const failedChannels = channels.filter((item) => item.status === "failed");
-  const status = sentChannels.length ? "sent" : failedChannels.length ? "failed" : "skipped";
+  const queuedChannels = channels.filter((item) => item.status === "queued");
+  const status = sentChannels.length ? "sent" : queuedChannels.length ? "queued" : failedChannels.length ? "failed" : "skipped";
 
   return {
     channel: sentChannels.map((item) => item.channel).join(",") || "completion-report",

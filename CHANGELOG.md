@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.1.2 - Hardware TTS Downlink Foundation
+
+### Added
+
+- Added a local-only Xiaozhi hardware TTS downlink channel for completed and blocked task reports.
+- Added a durable `xiaoqinglong-hardware-tts-outbox.json` queue when the ESP32/device TTS gateway is not configured yet.
+- Added Mission Control diagnostics for hardware TTS state, pending reports, and recent Xiaozhi `speakerId` evidence.
+- Added a protected `hardware-tts-test` Mission Control action to send or queue a safe test report.
+
+### Safety
+
+- Hardware TTS delivery only accepts loopback endpoints such as `127.0.0.1` or `localhost`.
+- If no gateway exists yet, reports are queued instead of silently pretending the ESP32 has spoken.
+
 ## v0.1.1 - Launchd Upgrade Compatibility
 
 ### Added
@@ -39,4 +53,4 @@ First public release of Xiaoqinglong Voice Assistant.
 
 - This release is a bridge and operator control surface, not a packaged macOS app.
 - Users must provide their own Xiaozhi MCP endpoint, Doubao ASR key, LobeHub Agent ID, and local token.
-- Voice response back to Xiaozhi hardware TTS is not included in this release; macOS local speech and notifications can be enabled for completion reports.
+- Direct ESP32 audio streaming still requires a device TTS gateway; the bridge provides the local downlink payload and queue.

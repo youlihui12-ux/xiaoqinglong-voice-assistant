@@ -5,6 +5,10 @@ const path = require("path");
 const crypto = require("crypto");
 const { execFile, spawn } = require("child_process");
 const os = require("os");
+const {
+  sendHardwareTtsDownlink,
+  summarizeHardwareTtsOutbox,
+} = require("./hardware-tts-downlink");
 
 const rootDir = __dirname;
 const envPath = path.join(rootDir, ".env");
@@ -202,6 +206,14 @@ function extractToolCalls(lines) {
     };
   });
 }
+function extractSpeakerIds(lines) {
+  const ids = [];
+  for (const line of lines) {
+    const matches = line.matchAll(/"speakerId"\s*:\s*(\d+)/g);
+    for (const match of matches) ids.push(match[1]);
+  }
+  return [...new Set(ids)].slice(-10);
+}
 function buildTrace(task) {
   const created = task.createdAt || "";
   const updated = task.updatedAt || "";
@@ -220,6 +232,10 @@ async function missionControl() {
   const [bridge, frontdoor, panel, watchdog, lobe, probe] = await Promise.all([launchStatus("bridge"), launchStatus("frontdoor"), launchStatus("panel"), launchStatus("watchdog"), lobeStatus(), wsProbe(env)]);
   const bridgeLogs = sanitizeMissionLogLines(tailFile(bridgeLogPath, 160));
   const watchdogLogs = sanitizeMissionLogLines(tailFile(watchdogLogPath, 80));
+  const hardwareTts = await summarizeHardwareTtsOutbox(rootDir, env);
+  const speakerIds = extractSpeakerIds(bridgeLogs);
+  hardwareTts.lastSpeakerId = speakerIds[speakerIds.length - 1] || "";
+  hardwareTts.recentSpeakerIds = speakerIds;
   const counts = taskCounts(tasks);
   const today = new Date().toLocaleDateString("zh-CN");
   const todayHighRisk = tasks.filter((task) => String(task.createdAt || "").includes(today) && isHighRisk(task)).length + approvals.length;
@@ -243,12 +259,14 @@ async function missionControl() {
       { key: "lobe", label: "Lobe 默认大脑", ok: lobe.ok && lobe.connected, value: lobe.connected ? "活跃" : "未连接", detail: config.lobeBrain?.agentName || "Hermes" },
       { key: "mcp", label: "MCP 调度入口", ok: bridge.ok, value: bridge.ok ? "连接正常" : "连接异常", detail: bridge.runs ? "runs " + bridge.runs : "launchd" },
       { key: "device", label: "Local Device", ok: lobe.connected, value: lobe.connected ? "运行中" : "断开告警", detail: lobe.connected ? "connected" : (lobe.error || "local device offline") },
+      { key: "hardware_tts", label: "硬件 TTS 下行", ok: hardwareTts.status === "ready", value: hardwareTts.status === "ready" ? "已接入" : hardwareTts.status === "waiting_for_gateway" ? "待接入" : hardwareTts.status === "disabled" ? "未启用" : "异常", detail: hardwareTts.detail },
     ],
     queue: { assigned: counts.assigned || 0, running: counts.running || 0, done: counts.done || 0, blocked: counts.blocked || 0, todayHighRisk, total: tasks.length },
     watchdog: { ok: watchdogHealthy, pid: watchdog.pid, lastSelfHeal, log: watchdogLogs.slice(-8), periodic: watchdogService.periodic, state: watchdogService.state, detail: watchdogService.detail },
     services: { bridge, frontdoor, panel, watchdog: watchdogService, lobe, probe },
     tasks: tasks.slice(-30).reverse().map(summarizeMissionTask),
     approvals: approvals.slice(-20).reverse(),
+    hardwareTts,
     mcp: { toolCalls: extractToolCalls(bridgeLogs), raw: bridgeLogs.slice(-80), errors: sanitizeMissionLogLines(tailFile(bridgeErrPath, 50)) },
   };
 }
@@ -291,6 +309,17 @@ async function action(name, payload = {}) {
     return { ok: true, stdout: tasks[target].id + " aborted" };
   }
   if (name === "dispatch-test") { if (!payload.text || !String(payload.text).trim()) return { ok: false, error: "empty test text" }; return { ok: true, task: createDispatchTask(payload.text, "control-panel") }; }
+  if (name === "hardware-tts-test") {
+    const text = String(payload.text || "领导，小青龙硬件播报链路测试。桌面桥已经生成一条设备 TTS 下行消息。").trim();
+    const report = await sendHardwareTtsDownlink({
+      id: "HTTS-PROBE",
+      status: "done",
+      title: "硬件 TTS 下行链路测试",
+      result: text,
+      source: "mission-control",
+    }, { env: loadEnv(), rootDir, message: text, source: "mission-control" });
+    return { ok: report.status === "sent" || report.status === "queued", report };
+  }
   if (name === "approve-risk" || name === "reject-risk") { const approvals = readJson(approvalsPath, []); const next = approvals.map((item) => item.id === payload.id ? { ...item, status: name === "approve-risk" ? "approved" : "rejected", decidedAt: new Date().toISOString() } : item); writeJson(approvalsPath, next); return { ok: true, stdout: payload.id + " " + name }; }
   return { ok: false, error: "unknown action" };
 }

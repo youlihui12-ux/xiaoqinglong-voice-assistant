@@ -1,6 +1,6 @@
 {
   "name": "xiaoqinglong-voice-assistant",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": false,
   "description": "A local-first Xiaozhi voice assistant bridge for macOS, LobeHub Local Device, Doubao ASR, and a Mission Control dashboard.",
   "main": "doubao-asr-frontdoor.js",
@@ -12,7 +12,7 @@
     "start:panel": "node control-panel-server.js",
     "watchdog": "./ensure-lobehub-connect.sh",
     "doctor": "node scripts/doctor.js",
-    "check": "node --check scripts/doctor.js && node --check desktop-tools.js && node --check doubao-asr-frontdoor.js && node --check lobe-dispatch-worker.js && node --check task-completion-reporter.js && node --check control-panel-server.js && node --check scripts/smoke-test.js",
+    "check": "node --check scripts/doctor.js && node --check desktop-tools.js && node --check doubao-asr-frontdoor.js && node --check lobe-dispatch-worker.js && node --check task-completion-reporter.js && node --check hardware-tts-downlink.js && node --check control-panel-server.js && node --check scripts/smoke-test.js",
     "test": "npm run check && node --test tests/*.test.js"
   },
   "keywords": [
