@@ -1,0 +1,15 @@
+{
+  "identity": "小青龙 / Lobe 默认大脑",
+  "voiceFrontdoor": {
+    "provider": "volcengine-doubao-asr",
+    "endpoint": "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel",
+    "resourceId": "volc.seedasr.sauc.duration",
+    "keyConfigured": false
+  },
+  "lobeBrain": {
+    "provider": "LobeHub CLI",
+    "agentName": "Hermes · 小青龙",
+    "agentId": "your-lobe-agent-id",
+    "cliPath": "~/Library/Application Support/LobeHub/bin/lobe"
+  }
+}

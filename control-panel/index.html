@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>小青龙 Mission Control</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <aside class="sidebar" aria-label="主导航">
+        <div class="brand"><span class="brand-mark">QL</span><div><strong>小青龙 Mission Control</strong><span>实时监控 · 链路追踪 · 急救干预</span></div></div>
+        <nav class="nav"><button class="nav-item is-active" data-view="overview">总览</button><button class="nav-item" data-view="trace">链路</button><button class="nav-item" data-view="toolbox">急救</button><button class="nav-item" data-view="approvals">审批</button></nav>
+        <div class="sidebar-status"><span class="status-light" data-global-light></span><div><strong data-global-title>连接中</strong><span data-global-subtitle>等待实时数据</span></div></div>
+      </aside>
+      <section class="content">
+        <header class="topbar"><div><p class="eyebrow">Xiaozhi → MCP → LobeHub → Local Device</p><h1>小青龙实用级超级控制台</h1></div><div class="topbar-actions"><span class="refresh-chip" data-updated-at>未刷新</span><button class="icon-button" data-action="refresh" title="立即刷新">↻</button></div></header>
+        <section id="overview" class="view is-visible"><div class="section-title"><h2>全局监控盘</h2><span class="pill" data-overall-pill>读取中</span></div><div class="live-ring" data-live-status></div><div class="metric-grid"><article class="metric-card"><span>排队中</span><strong data-count="assigned">0</strong></article><article class="metric-card"><span>执行中</span><strong data-count="running">0</strong></article><article class="metric-card"><span>阻塞</span><strong data-count="blocked">0</strong></article><article class="metric-card risk"><span>今日高危</span><strong data-count="todayHighRisk">0</strong></article></div><section class="panel watchdog-panel"><div><h3>Watchdog 守护</h3><p data-watchdog-summary>等待守护状态</p></div><div class="mini-log" data-watchdog-log></div></section></section>
+        <section id="trace" class="view"><div class="section-title"><h2>动态链路追踪</h2><span class="pill good">Trace</span></div><div class="trace-layout"><section class="panel task-list-panel"><div class="panel-head"><h3>实时任务瀑布流</h3><button data-action="refresh">刷新</button></div><div class="task-list" data-task-list></div></section><section class="panel task-detail-panel"><div class="panel-head"><h3 data-task-title>选择一个任务</h3><span class="status-badge" data-task-status>idle</span></div><div class="trace-stages" data-trace-stages></div><details class="json-monitor" open><summary>MCP JSON 报文监视器</summary><pre data-json-monitor>{}</pre></details></section></div></section>
+        <section id="toolbox" class="view"><div class="section-title"><h2>开发者急救箱</h2><span class="pill warn">受控操作</span></div><div class="toolbox-grid"><section class="panel inject-panel"><h3>文字注入测试</h3><textarea id="test-input" rows="5">检查当前小智调度链路，说明现在是不是小青龙智能 AI 模式</textarea><div class="actions"><button class="primary" data-action="dispatch-test">发送测试任务</button><button data-copy="你现在是什么模式？">复制模式测试</button></div><p class="hint">用于不用喊话也能验证 Lobe、MCP 和 Local Device 链路。</p></section><section class="panel kill-panel"><h3>一键重启与急救</h3><div class="command-grid"><button data-action="restart-watchdog">重启 Watchdog</button><button data-action="restart-bridge">重启小智桥接</button><button data-action="restart-frontdoor">重启控制 API</button><button class="danger" data-action="abort-current-task">强制中止当前任务</button><button class="danger" data-action="clear-active-queue">清空当前队列</button></div></section></div><section class="panel raw-log-panel"><h3>实时 MCP 日志</h3><pre data-raw-log></pre></section></section>
+        <section id="approvals" class="view"><div class="section-title"><h2>高危操作拦截与审批</h2><span class="pill danger">人工确认</span></div><div class="approval-list" data-approval-list></div></section>
+      </section>
+    </main>
+    <div class="toast" role="status" aria-live="polite"></div><script src="./app.js"></script>
+  </body>
+</html>
